@@ -1,9 +1,9 @@
 
 
-qt_add_library(
+an_add_qt_library(
     adb SHARED
-    AdbProcess.cpp
-    AdbProcess.h
+        AdbHandler.cpp
+        AdbHandler.h
     typedef.h
 )
 

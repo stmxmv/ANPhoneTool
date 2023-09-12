@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/Shaders">
+        <file>Render/Shaders/YUVVideo.shader</file>
+    </qresource>
+    <qresource prefix="/Binary">
+        <file>Resources/scrcpy-server.jar</file>
+    </qresource>
+</RCC>

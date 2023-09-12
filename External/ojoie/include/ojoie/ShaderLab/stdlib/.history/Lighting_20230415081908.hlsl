@@ -1,0 +1,5 @@
+#ifndef AN_LIGHTING_HLSL
+#define AN_LIGHTING_HLSL
+
+
+#endif//AN_LIGHTING_HLSL

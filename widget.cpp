@@ -1,8 +1,10 @@
 #include "widget.h"
 #include "./ui_widget.h"
 
-#include <adb/AdbProcess.h>
+#include "MirrorWidget.h"
+
 #include <QDir>
+#include <adb/AdbHandler.h>
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent)
@@ -27,6 +29,37 @@ void Widget::on_testButton_clicked()
         qDebug() << ">>>>>>>>>>>>" << result;
     });
 
-    qDebug() << adb->getDeivceIPAdress();
+    QStringList devices = adb->getDeviceSerials();
+    if (!devices.empty())
+    {
+        AN_LOG(Info, "Device %s", adb->getDeviceSerials().first().toStdString().c_str());
+    }
+    else
+    {
+        AN_LOG(Info, "No Device attached");
+    }
+}
+
+
+void Widget::on_videoButton_clicked()
+{
+    /// "", 27183, 720, 8000000
+    MirrorWidget *mirrorWidget = new MirrorWidget();
+    mirrorWidget->startMirror("", 27183, 720, 8000000);
+    mirrorWidget->setAttribute(Qt::WA_DeleteOnClose, true);
+    mirrorWidget->center();
+    mirrorWidget->show();
+}
+
+
+void Widget::on_startDaemonButton_clicked()
+{
+
+}
+
+
+void Widget::on_stopDaemonButton_clicked()
+{
+
 }
 

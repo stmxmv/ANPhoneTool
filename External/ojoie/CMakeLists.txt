@@ -1,0 +1,10 @@
+add_library(ojoie SHARED IMPORTED GLOBAL)
+
+set_target_properties(
+        ojoie PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_LIST_DIR}/include"
+        IMPORTED_IMPLIB "${CMAKE_CURRENT_LIST_DIR}/win32/ojoie.lib"
+        IMPORTED_LOCATION "${CMAKE_CURRENT_LIST_DIR}/win32/ojoie.dll"
+        IMPORTED_IMPLIB_DEBUG "${CMAKE_CURRENT_LIST_DIR}/win32/ojoied.lib"
+        IMPORTED_LOCATION_DEBUG "${CMAKE_CURRENT_LIST_DIR}/win32/ojoied.dll"
+)
