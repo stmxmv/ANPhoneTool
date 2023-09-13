@@ -2,6 +2,8 @@
 #include <QThread>
 #include <QMutexLocker>
 
+#include "Utilities/Log.h"
+
 #include "DeviceSocket.h"
 #include "ANPhoneEvent.h"
 
@@ -81,3 +83,54 @@ void DeviceSocket::quitNotify()
         m_recvDataCond.wakeOne();
     }
 }
+
+
+DeviceControlSocket::DeviceControlSocket(QObject *parent)
+    : QTcpSocket(parent), m_CurrentPackageSize()
+{
+    connect(this, &QTcpSocket::readyRead, this, [this]()
+                          {
+
+                              do {
+
+                                  QByteArray tempBytes = readAll();
+                                  m_Bytes.append(tempBytes);
+
+                                  if (m_CurrentPackageSize == 0)
+                                  {
+                                      if (m_Bytes.length() >= sizeof(int))
+                                      {
+                                          int size = *(const int *)m_Bytes.constData();
+                                          m_CurrentPackageSize = size;
+                                          if (m_CurrentPackageSize < sizeof(int))
+                                          {
+                                              qInfo() << "Invalid packet! total_size:" << m_CurrentPackageSize;
+                                              close();
+                                              deleteLater();
+                                              return;
+                                          }
+                                      }
+                                  }
+
+                                  if (m_CurrentPackageSize >= sizeof(int) && m_Bytes.length() >= m_CurrentPackageSize)
+                                  {
+                                      AN::DesktopMessage desktopMessage;
+                                      if (desktopMessage.ParseFromArray(m_Bytes.constData() + sizeof(int), m_CurrentPackageSize - sizeof(int)))
+                                      {
+                                          emit OnReadMessage(desktopMessage);
+                                      }
+                                      else
+                                      {
+                                          AN_LOG(Error, "server message parse fail");
+                                      }
+
+                                      m_Bytes.remove(0, m_CurrentPackageSize);
+                                      m_CurrentPackageSize = 0;
+                                  }
+
+                              } while (0 == m_CurrentPackageSize && m_Bytes.length() >= sizeof(int));
+
+                          });
+}
+
+DeviceDataSocket::DeviceDataSocket(QObject *parent) : QTcpSocket(parent) {}

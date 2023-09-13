@@ -1,0 +1,20 @@
+syntax = "proto3";
+package AN;
+
+enum ArrowKey {
+  kArrowKeyUp = 0;
+  kArrowKeyDown = 1;
+  kArrowKeyLeft = 2;
+  kArrowKeyRight = 3;
+}
+
+enum DesktopMessageType {
+    kDesktopMessageNone = 0;
+    kDesktopMessageArrowKey = 1;  // data: DesktopArrayKey
+    kDesktopMessageSendText = 2;  // data is text string
+}
+
+message DesktopMessage {
+  DesktopMessageType type = 1;
+  bytes data = 2;
+}

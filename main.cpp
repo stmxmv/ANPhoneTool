@@ -1,6 +1,8 @@
 #include "widget.h"
 
 #include <Render/Decoder.h>
+#include <Network/DesktopServer.h>
+#include <Core/MDNSService.h>
 
 #include <QApplication>
 #include <ojoie/Render/RenderContext.hpp>
@@ -30,10 +32,26 @@ int main(int argc, char *argv[])
     Decoder::Initialize();
 
     QApplication a(argc, argv);
+
+
+    AN::MDNSService service;
+
+    service.SetRegisterErrorCallback(
+            [](const AN::MDNSError &error, void *userInfo)
+            {
+                AN_LOG(Error, "MDNS Error %s", error.message.c_str());
+            });
+    service.Register("ANPhoneTool", "_anphonetool._tcp", 13130);
+
+    /// run the server
+    GetDesktopServer();
+
     Widget w;
     w.show();
 
     int ret = a.exec();
+
+    service.UnRegister();
 
     Object::DestroyAllObjects();
 

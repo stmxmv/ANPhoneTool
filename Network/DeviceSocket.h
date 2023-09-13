@@ -1,9 +1,38 @@
 #ifndef DEVICESOCKET_H
 #define DEVICESOCKET_H
 
+#include "DesktopMessage.pb.h"
+
 #include <QTcpSocket>
 #include <QWaitCondition>
 #include <QMutex>
+
+class DeviceControlSocket : public QTcpSocket
+{
+    Q_OBJECT
+
+    int m_CurrentPackageSize;
+    QByteArray m_Bytes;
+
+public:
+
+    explicit DeviceControlSocket(QObject *parent);
+
+signals:
+
+    void OnReadMessage(AN::DesktopMessage message);
+
+};
+
+class DeviceDataSocket : public QTcpSocket
+{
+    Q_OBJECT
+
+public:
+
+    explicit DeviceDataSocket(QObject *parent);
+
+};
 
 class DeviceSocket : public QTcpSocket
 {
@@ -15,7 +44,7 @@ public:
     qint32 subThreadRecvData(quint8* buf, qint32 bufSize);
 
 protected:
-    bool event(QEvent *event);
+    virtual bool event(QEvent *event) override;
 
 protected slots:
     void onReadyRead();

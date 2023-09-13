@@ -51,6 +51,7 @@ void AndroidDaemon::stop()
 {
     if (m_deviceSocket) {
         m_deviceSocket->close();
+        /// FIXME
         //m_deviceSocket->deleteLater();
     }
 

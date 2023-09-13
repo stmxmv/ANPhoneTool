@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.8)
 
 project(ANPhoneTool VERSION 0.1 LANGUAGES CXX)
 
@@ -71,6 +71,10 @@ include_directories(${CMAKE_SOURCE_DIR})
 # add externals
 add_subdirectory(External)
 
+# generate proto sources
+add_subdirectory(proto)
+
+
 # include project libraries
 add_subdirectory(Core)
 add_subdirectory(Render)
@@ -78,6 +82,8 @@ add_subdirectory(Network)
 add_subdirectory(Utilities)
 add_subdirectory(Tools)
 add_subdirectory(adb)
+
+
 
 
 set(PROJECT_SOURCES
@@ -167,5 +173,13 @@ foreach (LIB ${FFMPEG_RUNTIMES})
     )
 endforeach ()
 
+get_target_property(PROTO_RUNTIMES protobuf RUNTIME_LIB_NAMES)
+get_target_property(PROTO_RUNTIMES_LOC protobuf RUNTIME_LOCATION)
+foreach (LIB ${PROTO_RUNTIMES})
+    add_custom_command(
+            TARGET ANPhoneTool POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${PROTO_RUNTIMES_LOC}/${LIB}$<$<CONFIG:Debug>:d>.dll $<TARGET_FILE_DIR:ANPhoneTool>
+    )
+endforeach ()
 
 
