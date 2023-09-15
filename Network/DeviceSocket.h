@@ -2,6 +2,7 @@
 #define DEVICESOCKET_H
 
 #include "DesktopMessage.pb.h"
+#include <Core/UUID.h>
 
 #include <QTcpSocket>
 #include <QWaitCondition>
@@ -20,17 +21,31 @@ public:
 
 signals:
 
-    void OnReadMessage(AN::DesktopMessage message);
+    void OnReadMessage(DeviceControlSocket *socket, AN::DesktopMessage message);
 
 };
+
+struct DataHeader {
+    AN::UUID uuid;
+    size_t blockSize; // block size includes the header size
+};
+
+static_assert(sizeof(DataHeader) == 24);
 
 class DeviceDataSocket : public QTcpSocket
 {
     Q_OBJECT
 
+    uint64_t m_CurrentPackageSize;
+    QByteArray m_Bytes;
+
 public:
 
     explicit DeviceDataSocket(QObject *parent);
+
+signals:
+
+    void OnReadData(const QByteArray &data);
 
 };
 

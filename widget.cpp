@@ -2,9 +2,11 @@
 #include "./ui_widget.h"
 
 #include "MirrorWidget.h"
+#include "Network/DesktopServer.h"
 
 #include <QDir>
 #include <adb/AdbHandler.h>
+#include <QFileDialog>
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent)
@@ -61,5 +63,41 @@ void Widget::on_startDaemonButton_clicked()
 void Widget::on_stopDaemonButton_clicked()
 {
 
+}
+
+
+void Widget::on_ringPhoneButton_clicked()
+{
+    AN::DeviceMessage deviceMessage;
+    deviceMessage.set_type(AN::kDeviceMessageRing);
+    deviceMessage.set_data("");
+
+    /// must be send in the server thread
+    QMetaObject::invokeMethod(&GetDesktopServer(), [=]()
+                              {
+                                  GetDesktopServer().sendMessage(deviceMessage);
+                              });
+
+}
+
+
+void Widget::on_sendFileButton_clicked()
+{
+    QString filePath = QFileDialog::getOpenFileName(this,
+                                                    "Send File",
+                                                    {},
+                                                    "All Files (*)");
+
+    if (filePath.isEmpty())
+    {
+        return;
+    }
+
+    AN_LOG(Info, "will send file %s", filePath.toStdString().c_str());
+
+    QMetaObject::invokeMethod(&GetDesktopServer(), [=]()
+                              {
+                                  GetDesktopServer().sendFile(filePath);
+                              });
 }
 

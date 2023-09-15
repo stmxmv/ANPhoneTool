@@ -84,6 +84,55 @@ void DeviceSocket::quitNotify()
     }
 }
 
+static int readRawVarint32(QByteArray &buffer, int &varintSize) {
+    varintSize = 0;
+    if (buffer.isEmpty()) {
+        return 0;
+    }
+    uint8_t tmp = buffer[0];
+    ++varintSize;
+    if (tmp >= 0) {
+        return tmp;
+    } else {
+        int result = tmp & 127;
+        if (buffer.size() < 2) {
+            return 0;
+        }
+        ++varintSize;
+        if ((tmp = buffer[1]) >= 0) {
+            result |= tmp << 7;
+        } else {
+            result |= (tmp & 127) << 7;
+            if (buffer.size() < 3) {
+                return 0;
+            }
+            ++varintSize;
+            if ((tmp = buffer[2]) >= 0) {
+                result |= tmp << 14;
+            } else {
+                result |= (tmp & 127) << 14;
+                if (buffer.size() < 4) {
+                    return 0;
+                }
+                ++varintSize;
+                if ((tmp = buffer[3]) >= 0) {
+                    result |= tmp << 21;
+                } else {
+                    result |= (tmp & 127) << 21;
+                    if (buffer.size() < 5) {
+                        return 0;
+                    }
+                    ++varintSize;
+                    result |= (tmp = buffer[4]) << 28;
+                    if (tmp < 0) {
+                        return -1; /// error
+                    }
+                }
+            }
+        }
+        return result;
+    }
+}
 
 DeviceControlSocket::DeviceControlSocket(QObject *parent)
     : QTcpSocket(parent), m_CurrentPackageSize()
@@ -98,26 +147,28 @@ DeviceControlSocket::DeviceControlSocket(QObject *parent)
 
                                   if (m_CurrentPackageSize == 0)
                                   {
-                                      if (m_Bytes.length() >= sizeof(int))
+                                      int varSize = 0;
+                                      int size = readRawVarint32(m_Bytes, varSize);
+                                      if (size > 0)
                                       {
-                                          int size = *(const int *)m_Bytes.constData();
                                           m_CurrentPackageSize = size;
-                                          if (m_CurrentPackageSize < sizeof(int))
-                                          {
-                                              qInfo() << "Invalid packet! total_size:" << m_CurrentPackageSize;
-                                              close();
-                                              deleteLater();
-                                              return;
-                                          }
+                                          m_Bytes.remove(0, varSize);
+                                      }
+                                      else if (size == -1)
+                                      {
+                                          qInfo() << "Invalid packet! total_size";
+                                          close();
+                                          deleteLater();
+                                          return;
                                       }
                                   }
 
-                                  if (m_CurrentPackageSize >= sizeof(int) && m_Bytes.length() >= m_CurrentPackageSize)
+                                  if (m_CurrentPackageSize != 0 && m_Bytes.length() >= m_CurrentPackageSize)
                                   {
                                       AN::DesktopMessage desktopMessage;
-                                      if (desktopMessage.ParseFromArray(m_Bytes.constData() + sizeof(int), m_CurrentPackageSize - sizeof(int)))
+                                      if (desktopMessage.ParseFromArray(m_Bytes.constData(), m_CurrentPackageSize))
                                       {
-                                          emit OnReadMessage(desktopMessage);
+                                          emit OnReadMessage(this, desktopMessage);
                                       }
                                       else
                                       {
@@ -128,9 +179,47 @@ DeviceControlSocket::DeviceControlSocket(QObject *parent)
                                       m_CurrentPackageSize = 0;
                                   }
 
-                              } while (0 == m_CurrentPackageSize && m_Bytes.length() >= sizeof(int));
+                              } while (0 == m_CurrentPackageSize && m_Bytes.length() > 1);
 
                           });
 }
 
-DeviceDataSocket::DeviceDataSocket(QObject *parent) : QTcpSocket(parent) {}
+DeviceDataSocket::DeviceDataSocket(QObject *parent)
+    : QTcpSocket(parent), m_CurrentPackageSize()
+{
+    connect(this, &QTcpSocket::readyRead, this, [this]()
+            {
+                do {
+
+                    QByteArray tempBytes = readAll();
+                    m_Bytes.append(tempBytes);
+
+                    if (m_CurrentPackageSize == 0)
+                    {
+                        if (m_Bytes.length() >= sizeof(DataHeader))
+                        {
+                            const DataHeader *header = (const DataHeader *)m_Bytes.constData();
+                            uint64_t size = header->blockSize;
+                            m_CurrentPackageSize = size + sizeof(DataHeader);
+                            if (m_CurrentPackageSize < sizeof(DataHeader))
+                            {
+                                qInfo() << "Invalid packet! total_size:" << m_CurrentPackageSize;
+                                close();
+                                deleteLater();
+                                return;
+                            }
+                        }
+                    }
+
+                    if (m_CurrentPackageSize >= sizeof(DataHeader) && m_Bytes.length() >= m_CurrentPackageSize)
+                    {
+                        emit OnReadData(m_Bytes);
+
+                        m_Bytes.remove(0, m_CurrentPackageSize);
+                        m_CurrentPackageSize = 0;
+                    }
+
+                } while (0 == m_CurrentPackageSize && m_Bytes.length() >= sizeof(DataHeader));
+
+            });
+}

@@ -4,6 +4,8 @@ an_add_qt_library(
         MDNSService.h
         KeyboardHandler.cpp
         KeyboardHandler.h
+        UUID.cpp
+        UUID.h
 )
 
 target_link_libraries(Core PUBLIC Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Network Bonjour Utilities)

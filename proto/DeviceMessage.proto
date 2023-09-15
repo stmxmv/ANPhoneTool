@@ -1,0 +1,16 @@
+syntax = "proto3";
+package AN;
+
+enum DeviceMessageType {
+  kDeviceMessageNone = 0;
+  kDeviceMessageAckSendFile = 1;      /// data is AckSendFileInfo
+  kDeviceMessageAckSendComplete = 2;  /// data is AckSendFileInfo
+  kDeviceMessageRing = 3;             /// data is none
+  kDeviceMessageSendFile = 4;         /// data is SendFileInfo
+}
+
+
+message DeviceMessage {
+  DeviceMessageType type = 1;
+  bytes data = 2;
+}

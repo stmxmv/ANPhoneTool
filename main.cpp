@@ -7,6 +7,12 @@
 #include <QApplication>
 #include <ojoie/Render/RenderContext.hpp>
 
+#include "wintoastlib.h"
+
+#ifdef _WIN32
+#include <objbase.h>
+#endif
+
 using namespace AN;
 
 /// log qDebug() to stdout
@@ -25,11 +31,21 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
 
 int main(int argc, char *argv[])
 {
+#ifdef _WIN32
+    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+#endif
+
     qInstallMessageHandler(customMessageHandler);
 
     InitializeRenderContext(AN::kGraphicsAPID3D11);
 
     Decoder::Initialize();
+
+    WinToastLib::WinToast *winToast = WinToastLib::WinToast::instance();
+    winToast->setAppName(L"ANPhoneTool");
+    const auto aumi = WinToastLib::WinToast::configureAUMI(L"AN", L"ANPhoneTool");
+    winToast->setAppUserModelId(aumi);
+    WinToastLib::WinToast::instance()->initialize();
 
     QApplication a(argc, argv);
 
@@ -44,12 +60,16 @@ int main(int argc, char *argv[])
     service.Register("ANPhoneTool", "_anphonetool._tcp", 13130);
 
     /// run the server
+    GetDesktopServerThread().start();
     GetDesktopServer();
 
     Widget w;
     w.show();
 
     int ret = a.exec();
+
+    GetDesktopServerThread().stopServer();
+    GetDesktopServerThread().wait();
 
     service.UnRegister();
 
@@ -58,6 +78,10 @@ int main(int argc, char *argv[])
     Decoder::Deallocate();
 
     DeallocRenderContext();
+
+#ifdef _WIN32
+    CoUninitialize();
+#endif
 
     return ret;
 }

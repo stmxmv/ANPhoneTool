@@ -65,6 +65,32 @@
     <string>Stop Daemon</string>
    </property>
   </widget>
+  <widget class="QPushButton" name="ringPhoneButton">
+   <property name="geometry">
+    <rect>
+     <x>80</x>
+     <y>170</y>
+     <width>80</width>
+     <height>24</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Ring Phone</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="sendFileButton">
+   <property name="geometry">
+    <rect>
+     <x>280</x>
+     <y>170</y>
+     <width>80</width>
+     <height>24</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Send FIle</string>
+   </property>
+  </widget>
  </widget>
  <resources/>
  <connections/>

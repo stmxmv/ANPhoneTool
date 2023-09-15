@@ -8,10 +8,24 @@ enum ArrowKey {
   kArrowKeyRight = 3;
 }
 
+message SendFileInfo {
+  bytes uuid = 1;
+  string fileName = 2;
+  uint64 fileSize = 3;
+}
+
+message AckSendFileInfo {
+  bytes uuid = 1;
+  uint64 pos = 2;
+}
+
 enum DesktopMessageType {
     kDesktopMessageNone = 0;
-    kDesktopMessageArrowKey = 1;  // data: DesktopArrayKey
+    kDesktopMessageArrowKey = 1;  // data is ArrowKey
     kDesktopMessageSendText = 2;  // data is text string
+    kDesktopMessageSendFile = 3;  // data is SendFileInfo
+    kDesktopMessageAckSendFile = 4;      // data is AckSendFileInfo
+    kDesktopMessageAckSendComplete = 5;  // data is AckSendFileInfo
 }
 
 message DesktopMessage {

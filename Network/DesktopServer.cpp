@@ -6,14 +6,50 @@
 #include "Core/KeyboardHandler.h"
 #include "DesktopServer.h"
 #include "DeviceSocket.h"
+#include "wintoastlib.h"
 
+#include <QStandardPaths>
+#include <QDir>
+#include <QCoreApplication>
+#include <QCursor>
 #include <QLabel>
 #include <QTimer>
-#include <QCursor>
+#include <QFileInfo>
 
-static uint16_t CONTROL_PORT = 13131;
-static uint16_t DATA_PORT = 13132;
+#include <format>
 
+constexpr static uint16_t CONTROL_PORT = 13131;
+constexpr static uint16_t DATA_PORT = 13132;
+
+constexpr static uint64_t BLOCK_SIZE = 1024 * 1024; /// 1MB
+
+static int computeRawVarint32Size(int value) {
+    if ((value & (0xffffffff <<  7)) == 0) {
+        return 1;
+    }
+    if ((value & (0xffffffff << 14)) == 0) {
+        return 2;
+    }
+    if ((value & (0xffffffff << 21)) == 0) {
+        return 3;
+    }
+    if ((value & (0xffffffff << 28)) == 0) {
+        return 4;
+    }
+    return 5;
+}
+
+static uint8_t *writeRawVarint32(uint8_t *out, uint32_t value) {
+    while (true) {
+        if ((value & ~0x7F) == 0) {
+            *out++ = value;
+            return out;
+        } else {
+            *out++ = (value & 0x7F) | 0x80;
+            value >>= 7;
+        }
+    }
+}
 
 void DesktopControlServer::incomingConnection(qintptr handle)
 {
@@ -29,7 +65,9 @@ void DesktopDataServer::incomingConnection(qintptr handle)
     addPendingConnection(dataSocket);
 }
 
-DesktopServer::DesktopServer(QObject *parent) : QObject(parent) {
+DesktopServer::DesktopServer(QObject *parent)
+    : QObject(parent), m_ControlServer(), m_DataServer()
+{
     if (!m_ControlServer.listen(QHostAddress::Any, CONTROL_PORT))
     {
         qCritical(QString("Could not listen on port %1").arg(CONTROL_PORT).toStdString().c_str());
@@ -65,6 +103,8 @@ DesktopServer::DesktopServer(QObject *parent) : QObject(parent) {
                                     socket->deleteLater();
                                 });
 
+                m_ControlSocket = controlSocket;
+
             });
 
     connect(&m_DataServer, &QTcpServer::newConnection, this, [this]()
@@ -73,8 +113,8 @@ DesktopServer::DesktopServer(QObject *parent) : QObject(parent) {
                 if (socket == nullptr) return;
 
                 AN_LOG(Info, "Desktop Data socket connect to %s", socket->peerAddress().toString().toStdString().c_str());
-                DeviceDataSocket *controlSocket = (DeviceDataSocket *)socket;
-//                QObject::connect(controlSocket, &DeviceDataSocket::OnReadMessage, this, &DesktopServer::OnReadMessage);
+                DeviceDataSocket *dataSocket = (DeviceDataSocket *)socket;
+                QObject::connect(dataSocket, &DeviceDataSocket::OnReadData, this, &DesktopServer::OnReadData);
 
                 QObject::connect(socket, &QTcpSocket::disconnected, this, [socket]()
                                  {
@@ -88,11 +128,24 @@ DesktopServer::DesktopServer(QObject *parent) : QObject(parent) {
                                      socket->deleteLater();
                                  });
 
+                m_DataSocket = dataSocket;
             });
 
 }
 
-void DesktopServer::OnReadMessage(AN::DesktopMessage message)
+void DesktopServer::sendMessage(QTcpSocket *socket, const google::protobuf::Message &message)
+{
+    std::string bytes = message.SerializeAsString();
+
+    int size = bytes.size();
+    int headerLen = computeRawVarint32Size(size);
+    uint8_t header[10];
+    writeRawVarint32(header, size);
+    socket->write((const char *)header, headerLen);
+    socket->write(bytes.data(), bytes.size());
+}
+
+void DesktopServer::OnReadMessage(DeviceControlSocket *socket, AN::DesktopMessage message)
 {
     AN_LOG(Info, "Receive message type %s", AN::DesktopMessageType_Name(message.type()).c_str());
 //    AN_LOG(Info, "Receive message data %s", message.data().c_str());
@@ -110,39 +163,125 @@ void DesktopServer::OnReadMessage(AN::DesktopMessage message)
 
         case AN::kDesktopMessageSendText:
         {
-            // data should be text string
-            QLabel* label = new QLabel();
-            label->setWindowFlags(Qt::WindowStaysOnTopHint | Qt::SplashScreen | Qt::FramelessWindowHint);
-            label->setAttribute(Qt::WA_ShowWithoutActivating);
-            label->setAttribute(Qt::WA_TranslucentBackground);
-            //    label->setGeometry(320, 200, 750, 360);
-            label->setAlignment(Qt::AlignCenter);
-            label->setStyleSheet("font-size: 25pt; border: none;  background-color: rgba(0, 0, 0, 0); color:rgb(255,255,0)");
-            label->setText(message.data().c_str());
+            /// GUI must be created in ui thread
+            QMetaObject::invokeMethod(
+                    qApp, [=]()
+                    {
+                        // data should be text string
+                        QLabel *label = new QLabel();
+                        label->setWindowFlags(Qt::WindowStaysOnTopHint | Qt::SplashScreen | Qt::FramelessWindowHint);
+                        label->setAttribute(Qt::WA_ShowWithoutActivating);
+                        label->setAttribute(Qt::WA_TranslucentBackground);
+                        //    label->setGeometry(320, 200, 750, 360);
+                        label->setAlignment(Qt::AlignCenter);
+                        label->setStyleSheet("font-size: 25pt; border: none;  background-color: rgba(0, 0, 0, 0); color:rgb(255,255,0)");
+                        label->setText(message.data().c_str());
 
-            QPoint mousePos = QCursor::pos();
-            int widgetWidth = label->width();
-            int widgetHeight = label->height();
-            int x = mousePos.x() - widgetWidth / 2;
-            int y = mousePos.y() - widgetHeight / 2;
+                        QPoint mousePos     = QCursor::pos();
+                        int    widgetWidth  = label->width();
+                        int    widgetHeight = label->height();
+                        int    x            = mousePos.x() - widgetWidth / 2;
+                        int    y            = mousePos.y() - widgetHeight / 2;
 
-            // Set the widget's position
-            label->setGeometry(x, y, widgetWidth, widgetHeight);
+                        // Set the widget's position
+                        label->setGeometry(x, y, widgetWidth, widgetHeight);
 
-            label->show();
+                        label->show();
 
-            QTimer *timer = new QTimer();
-            QObject::connect(timer, &QTimer::timeout, [=]()
-                             {
+                        QTimer *timer = new QTimer();
+                        QObject::connect(timer, &QTimer::timeout, [=]()
+                                         {
                                  timer->deleteLater();
                                  label->hide();
-                                 label->deleteLater();
-                             });
-            timer->setInterval(5000);
-            timer->start();
+                                 label->deleteLater(); });
+                        timer->setInterval(5000);
+                        timer->start(); },
+                    Qt::QueuedConnection);
 
             break;
         }
+
+        case AN::kDesktopMessageSendFile:
+        {
+            AN::SendFileInfo info;
+            if (info.ParseFromArray(message.data().data(), message.data().size()))
+            {
+                AN_LOG(Info, "client send file name %s size %llu", info.filename().c_str(), info.filesize());
+                willReceiveFile(info, socket);
+
+                /// ack send file
+                AN::DeviceMessage deviceMessage;
+                deviceMessage.set_type(AN::kDeviceMessageAckSendFile);
+
+                AN::AckSendFileInfo ack;
+                ack.set_uuid(info.uuid().data(), info.uuid().size());
+                ack.set_pos(0);// start position
+
+                deviceMessage.set_data(ack.SerializeAsString());
+
+                sendMessage(socket, deviceMessage);
+            }
+        }
+        break;
+        case AN::kDesktopMessageAckSendFile:
+        {
+            AN::AckSendFileInfo info;
+            if (info.ParseFromArray(message.data().data(), message.data().size()))
+            {
+                AN::UUID uuid;
+                memcpy(&uuid, info.uuid().data(), sizeof uuid);
+                AN_LOG(Info, "client ack send file %s pos %llu", uuid.string().c_str(), info.pos());
+
+                if (m_SendFileMap.contains(uuid.string()))
+                {
+                    const QString &filePath = m_SendFileMap[uuid.string()];
+                    QFile file(filePath);
+
+                    if (file.open(QIODevice::ReadOnly) && file.seek(info.pos()))
+                    {
+                        QByteArray buffer(BLOCK_SIZE + sizeof(DataHeader), 0);
+                        qint64 fileRead = file.read(buffer.data() + sizeof(DataHeader), BLOCK_SIZE);
+
+                        DataHeader *header = (DataHeader *)buffer.data();
+                        header->uuid = uuid;
+                        header->blockSize = min(fileRead, BLOCK_SIZE);
+
+                        buffer.resize(header->blockSize + sizeof(DataHeader));
+
+                        if (m_DataSocket)
+                        {
+                            qint64 written = m_DataSocket->write(buffer);
+
+                            /// FIXME
+                            assert(written == header->blockSize + sizeof(DataHeader));
+                        }
+                    }
+                    else
+                    {
+                        /// TODO send error message
+                    }
+                }
+            }
+        }
+        break;
+
+        case AN::kDesktopMessageAckSendComplete:
+        {
+            AN::AckSendFileInfo info;
+            if (info.ParseFromArray(message.data().data(), message.data().size()))
+            {
+                AN::UUID uuid;
+                memcpy(&uuid, info.uuid().data(), sizeof uuid);
+
+                if (m_SendFileMap.contains(uuid.string()))
+                {
+                    const QString &filePath = m_SendFileMap[uuid.string()];
+
+                    AN_LOG(Info, "send file %s complete", filePath.toStdString().c_str());
+                }
+            }
+        }
+        break;
 
         default:
         {
@@ -151,9 +290,149 @@ void DesktopServer::OnReadMessage(AN::DesktopMessage message)
     }
 }
 
+void DesktopServer::OnReadData(const QByteArray &bytes)
+{
+    DataHeader header = *(DataHeader *)bytes.constData();
+    if (!m_ReceiveFileMap.contains(header.uuid.string()))
+    {
+        return;
+    }
+
+    ReceiveFileContext &context = m_ReceiveFileMap[header.uuid.string()];
+
+    context.receivedSize += header.blockSize;
+    context.file->write(bytes.constData() + sizeof header, header.blockSize);
+
+    if (context.receivedSize >= context.info.filesize())
+    {
+        context.file->close();
+        context.file->deleteLater();
+        context.complete = true;
+
+        /// notify we received complete
+        AN::DeviceMessage deviceMessage;
+        deviceMessage.set_type(AN::kDeviceMessageAckSendComplete);
+
+        AN::AckSendFileInfo ack;
+        ack.set_uuid(context.info.uuid().data(), context.info.uuid().size());
+        ack.set_pos(context.receivedSize); // start position
+
+        deviceMessage.set_data(ack.SerializeAsString());
+
+        sendMessage(context.controlSocket, deviceMessage);
+
+        using namespace WinToastLib;
+        WinToastTemplate templ = WinToastTemplate(WinToastTemplate::Text01);
+        templ.setTextField(L"File Download Complete", WinToastTemplate::FirstLine);
+
+        class WinToastHandlerNone : public WinToastLib::IWinToastHandler {
+        public:
+            WinToastHandlerNone() {}
+            // Public interfaces
+            void toastActivated() const override {}
+            virtual void toastActivated(int actionIndex) const override {}
+            void toastDismissed(WinToastDismissalReason state) const override {}
+            void toastFailed() const override {}
+        } *handler = new WinToastHandlerNone();
+
+        WinToast::instance()->showToast(templ, handler);
+    }
+    else
+    {
+        /// ack send file
+        AN::DeviceMessage deviceMessage;
+        deviceMessage.set_type(AN::kDeviceMessageAckSendFile);
+
+        AN::AckSendFileInfo ack;
+        ack.set_uuid(context.info.uuid().data(), context.info.uuid().size());
+        ack.set_pos(context.receivedSize); // start position
+
+        deviceMessage.set_data(ack.SerializeAsString());
+
+        sendMessage(context.controlSocket, deviceMessage);
+    }
+}
+
+void DesktopServer::willReceiveFile(const AN::SendFileInfo &info, DeviceControlSocket *controlSocket)
+{
+    ReceiveFileContext context{};
+    context.info = info;
+
+    QStringList downloadPaths = QStandardPaths::standardLocations(QStandardPaths::DownloadLocation);
+    QString downloadFolder = downloadPaths.first();
+    downloadFolder = downloadFolder + "/" + info.filename().c_str();
+
+    context.file = new QFile(downloadFolder, this);
+    context.controlSocket = controlSocket;
+
+    if (!context.file->open(QIODeviceBase::WriteOnly))
+    {
+        AN_LOG(Error, "cannot create download file at path %s", downloadFolder.toStdString().c_str());
+        context.file->deleteLater();
+        context.file = nullptr;
+        return;
+    }
+    else
+    {
+        AN_LOG(Info, "File will download at path %s", downloadFolder.toStdString().c_str());
+    }
+
+    AN::UUID uuid;
+    memcpy(&uuid, info.uuid().data(), sizeof uuid);
+    m_ReceiveFileMap[uuid.string()] = context;
+}
+
+void DesktopServer::sendFile(const QString &filePath)
+{
+    QFileInfo fileInfo(filePath);
+
+    if (!fileInfo.exists())
+    {
+        return;
+    }
+
+    qint64 fileSize = fileInfo.size();
+
+    AN::SendFileInfo info;
+
+    AN::UUID uuid;
+    uuid.init();
+
+    m_SendFileMap[uuid.string()] = filePath;
+
+    info.set_uuid(&uuid, sizeof uuid);
+    info.set_filename(QFileInfo(filePath).fileName().toStdString().c_str());
+    info.set_filesize(fileSize);
+
+    AN_LOG(Info, "will send file with uuid %s size %llu", uuid.string().c_str(), fileSize);
+
+    AN::DeviceMessage message;
+    message.set_type(AN::kDeviceMessageSendFile);
+    message.set_data(info.SerializeAsString());
+    sendMessage(message);
+}
+
+static DesktopServerThread s_DesktopServerThread;
 
 DesktopServer &GetDesktopServer()
 {
-    static DesktopServer desktopServer;
-    return desktopServer;
+    return *s_DesktopServerThread.getServer();
+}
+
+DesktopServerThread &GetDesktopServerThread()
+{
+    return s_DesktopServerThread;
+}
+
+void DesktopServerThread::run()
+{
+    m_EventLoop = new QEventLoop(this);
+    m_Server = new DesktopServer(this);
+    m_EventLoop->exec();
+}
+
+void DesktopServerThread::stopServer()
+{
+    if (m_EventLoop == nullptr) return;
+    m_EventLoop->quit();
 }

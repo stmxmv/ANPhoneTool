@@ -29,6 +29,10 @@ private slots:
 
     void on_stopDaemonButton_clicked();
 
+    void on_ringPhoneButton_clicked();
+
+    void on_sendFileButton_clicked();
+
 private:
     Ui::Widget *ui;
 };
