@@ -3,6 +3,8 @@
 
 #include <QScreen>
 
+#define MIRROR_PORT 13133
+
 static QRect getScreenRect(QWidget *window)
 {
     QRect screenRect;
@@ -39,25 +41,39 @@ MirrorWidget::MirrorWidget(QWidget *parent) :
 
     ui->keepRatioWidget->setMouseTracking(true);
 
+    TcpServer::connect(&m_Server, &QTcpServer::newConnection, this, [this](){
 
-    connect(&m_AndroidDaemon, &AndroidDaemon::OnStart, [](bool success)
-            {
-                AN_LOG(Info, "Android Daemon Start");
-            });
+                         AN_LOG(Info, "mirror socket connected");
 
-    connect(&m_AndroidDaemon, &AndroidDaemon::OnConnect, this,
-            [this](bool success, const QString& deviceName, const QSize& size)
-            {
-                AN_LOG(Info, "Android Daemon Connect %d %s", (int) success, deviceName.toStdString().c_str());
+                         m_deviceSocket = dynamic_cast<DeviceSocket*>(m_Server.nextPendingConnection());
+                         m_Decoder.setDeviceSocket(m_deviceSocket);
+                         m_Decoder.startDecode();
+                         updateFrameSize(QSize(1079, 2105)); // crop
 
-                if (success)
-                {
-                    m_Decoder.setDeviceSocket(m_AndroidDaemon.getDeviceSocket());
-                    m_Decoder.startDecode();
+                         QObject::connect(m_deviceSocket, &DeviceSocket::disconnected, this, [this] ()
+                                                {
+                                                    AN_LOG(Info, "mirror socket disconnected");
+                                                });
+                     });
 
-                    updateFrameSize(size);
-                }
-            });
+//    connect(&m_AndroidDaemon, &AndroidDaemon::OnStart, [](bool success)
+//            {
+//                AN_LOG(Info, "Android Daemon Start");
+//            });
+//
+//    connect(&m_AndroidDaemon, &AndroidDaemon::OnConnect, this,
+//            [this](bool success, const QString& deviceName, const QSize& size)
+//            {
+//                AN_LOG(Info, "Android Daemon Connect %d %s", (int) success, deviceName.toStdString().c_str());
+//
+//                if (success)
+//                {
+//                    m_Decoder.setDeviceSocket(m_AndroidDaemon.getDeviceSocket());
+//                    m_Decoder.startDecode();
+//
+//                    updateFrameSize(size);
+//                }
+//            });
 
     Q_ASSERT(m_Frames.init());
     m_Decoder.setFrames(&m_Frames);
@@ -81,7 +97,11 @@ MirrorWidget::MirrorWidget(QWidget *parent) :
 
 MirrorWidget::~MirrorWidget()
 {
-    m_AndroidDaemon.stop();
+//    m_AndroidDaemon.stop();
+    m_Server.close();
+    if (m_deviceSocket) {
+        m_deviceSocket->close();
+    }
     m_Decoder.stopDecode();
     m_Frames.deinit();
     delete ui;
@@ -134,5 +154,6 @@ void MirrorWidget::center()
 
 void MirrorWidget::startMirror(const QString &serial, quint16 localPort, quint16 maxSize, quint32 bitRate)
 {
-    m_AndroidDaemon.start(serial, localPort, maxSize, bitRate);
+//    m_AndroidDaemon.start(serial, localPort, maxSize, bitRate);
+    m_Server.listen(QHostAddress::Any, MIRROR_PORT);
 }

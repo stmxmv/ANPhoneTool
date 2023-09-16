@@ -5,6 +5,8 @@
 #include "frames.h"
 #include "Network/DeviceSocket.h"
 
+#include "Utilities/Log.h"
+
 #define BUFSIZE 0x10000
 
 Decoder::Decoder()
@@ -112,7 +114,7 @@ void Decoder::run()
     // 申请解码缓冲区
     decoderBuffer = (unsigned char*)av_malloc(BUFSIZE);
     if (!decoderBuffer) {
-        qCritical("Could not allocate buffer");
+        AN_LOG(Error, "Could not allocate buffer");
         goto runQuit;
     }
 
@@ -120,7 +122,7 @@ void Decoder::run()
     // 参数 ： 解码缓冲区，解码缓冲区大小，写标记（0即可），readPacket参数，数据读取回调函数
     avioCtx = avio_alloc_context(decoderBuffer, BUFSIZE, 0, this, readPacket, NULL, NULL);
     if (!avioCtx) {
-        qCritical("Could not allocate avio context");        
+        AN_LOG(Error, "Could not allocate avio context");        
         av_free(decoderBuffer);
         goto runQuit;
     }
@@ -128,14 +130,14 @@ void Decoder::run()
     // 初始化封装上下文
     formatCtx = avformat_alloc_context();
     if (!formatCtx) {
-        qCritical("Could not allocate format context");
+        AN_LOG(Error, "Could not allocate format context");
         goto runQuit;
     }
     // 为封装上下文指定io上下文
     formatCtx->pb = avioCtx;
     // 打开封装上下文
-    if (avformat_open_input(&formatCtx, NULL, NULL, NULL) < 0) {
-        qCritical("Could not open video stream");
+    if (avformat_open_input(&formatCtx, nullptr, nullptr, nullptr) < 0) {
+        AN_LOG(Error, "Could not open video stream");
         goto runQuit;
     }
     isFormatCtxOpen = true;
@@ -143,19 +145,19 @@ void Decoder::run()
     // 初始化解码器
     codec = avcodec_find_decoder(AV_CODEC_ID_H264);
     if (!codec) {
-        qCritical("H.264 decoder not found");
+        AN_LOG(Error, "H.264 decoder not found");
         goto runQuit;
     }
 
     // 初始化解码器上下文
     codecCtx = avcodec_alloc_context3(codec);
     if (!codecCtx) {
-        qCritical("Could not allocate decoder context");
+        AN_LOG(Error, "Could not allocate decoder context");
         goto runQuit;
     }
     // 打开解码器上下文
     if (avcodec_open2(codecCtx, codec, NULL) < 0) {
-        qCritical("Could not open H.264 codec");
+        AN_LOG(Error, "Could not open H.264 codec");
         goto runQuit;
     }
     isCodecCtxOpen = true;
@@ -175,7 +177,7 @@ void Decoder::run()
         int ret;
         // 解码h264
         if ((ret = avcodec_send_packet(codecCtx, &packet)) < 0) {
-            qCritical("Could not send video packet: %d", ret);
+            AN_LOG(Error, "Could not send video packet: %d", ret);
             goto runQuit;
         }
         // 取出yuv
@@ -186,7 +188,7 @@ void Decoder::run()
             // 成功解码出一帧
             pushFrame();            
         } else if (ret != AVERROR(EAGAIN)) {
-            qCritical("Could not receive video frame: %d", ret);
+            AN_LOG(Error, "Could not receive video frame: %d", ret);
             av_packet_unref(&packet);
             goto runQuit;
         }

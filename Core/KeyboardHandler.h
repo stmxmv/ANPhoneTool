@@ -9,8 +9,12 @@ class KeyboardHandler {
 public:
 
     /// up down left right correspond to 0 1 2 3
-    void sendErrorKey(int id);
+    void sendArrowKey(int id);
 
+    [[deprecated]]
+    bool isUserEditing();
+
+    void sendPaste();
 };
 
 KeyboardHandler &GetKeyboardHandler();

@@ -7,16 +7,45 @@
 #include "DesktopServer.h"
 #include "DeviceSocket.h"
 #include "wintoastlib.h"
+#include "Core/UserNotificationCenter.h"
 
 #include <QStandardPaths>
 #include <QDir>
 #include <QCoreApplication>
+#include <QApplication>
 #include <QCursor>
 #include <QLabel>
 #include <QTimer>
 #include <QFileInfo>
+#include <QClipboard>
+#include <QMessageBox>
 
 #include <format>
+
+
+#ifdef _WIN32
+#include <Windows.h>
+static void SetClipboardText(const char* text)
+{
+    if (!::OpenClipboard(NULL))
+        return;
+    const int wbuf_length = ::MultiByteToWideChar(CP_UTF8, 0, text, -1, NULL, 0);
+    HGLOBAL wbuf_handle = ::GlobalAlloc(GMEM_MOVEABLE, (SIZE_T)wbuf_length * sizeof(WCHAR));
+    if (wbuf_handle == NULL)
+    {
+        ::CloseClipboard();
+        return;
+    }
+    WCHAR* wbuf_global = (WCHAR*)::GlobalLock(wbuf_handle);
+    ::MultiByteToWideChar(CP_UTF8, 0, text, -1, wbuf_global, wbuf_length);
+    ::GlobalUnlock(wbuf_handle);
+    ::EmptyClipboard();
+    if (::SetClipboardData(CF_UNICODETEXT, wbuf_handle) == NULL)
+        ::GlobalFree(wbuf_handle);
+    ::CloseClipboard();
+}
+
+#endif
 
 constexpr static uint16_t CONTROL_PORT = 13131;
 constexpr static uint16_t DATA_PORT = 13132;
@@ -66,7 +95,7 @@ void DesktopDataServer::incomingConnection(qintptr handle)
 }
 
 DesktopServer::DesktopServer(QObject *parent)
-    : QObject(parent), m_ControlServer(), m_DataServer()
+    : QObject(parent), m_ControlServer(), m_DataServer(), m_ControlSocket(), m_DataSocket()
 {
     if (!m_ControlServer.listen(QHostAddress::Any, CONTROL_PORT))
     {
@@ -157,12 +186,19 @@ void DesktopServer::OnReadMessage(DeviceControlSocket *socket, AN::DesktopMessag
         case AN::kDesktopMessageArrowKey:
         {
             AN::ArrowKey *key = (AN::ArrowKey *) message.data().data();
-            GetKeyboardHandler().sendErrorKey((int) *key);
+            GetKeyboardHandler().sendArrowKey((int) *key);
         }
         break;
 
         case AN::kDesktopMessageSendText:
         {
+//            if (GetKeyboardHandler().isUserEditing()) {
+//                AN_LOG(Debug, "user is editing");
+//            }
+
+            SetClipboardText(message.data().c_str());
+            GetKeyboardHandler().sendPaste();
+
             /// GUI must be created in ui thread
             QMetaObject::invokeMethod(
                     qApp, [=]()
@@ -321,21 +357,42 @@ void DesktopServer::OnReadData(const QByteArray &bytes)
 
         sendMessage(context.controlSocket, deviceMessage);
 
-        using namespace WinToastLib;
-        WinToastTemplate templ = WinToastTemplate(WinToastTemplate::Text01);
-        templ.setTextField(L"File Download Complete", WinToastTemplate::FirstLine);
+//        using namespace WinToastLib;
+//        WinToastTemplate templ = WinToastTemplate(WinToastTemplate::Text01);
+//        templ.setTextField(L"File Download Complete", WinToastTemplate::FirstLine);
+//
+//        class WinToastHandlerNone : public WinToastLib::IWinToastHandler {
+//        public:
+//            WinToastHandlerNone() {}
+//            // Public interfaces
+//            void toastActivated() const override {}
+//            virtual void toastActivated(int actionIndex) const override {}
+//            void toastDismissed(WinToastDismissalReason state) const override {}
+//            void toastFailed() const override {}
+//        } *handler = new WinToastHandlerNone();
+//
+////        WinToast::instance()->showToast(templ, handler);
+//
+//        GetUserNotificationCenter().showToast(templ, handler);
 
-        class WinToastHandlerNone : public WinToastLib::IWinToastHandler {
-        public:
-            WinToastHandlerNone() {}
-            // Public interfaces
-            void toastActivated() const override {}
-            virtual void toastActivated(int actionIndex) const override {}
-            void toastDismissed(WinToastDismissalReason state) const override {}
-            void toastFailed() const override {}
-        } *handler = new WinToastHandlerNone();
 
-        WinToast::instance()->showToast(templ, handler);
+        QMetaObject::invokeMethod(qApp, []
+                                  {
+                                      QMessageBox messageBox;
+
+                                      // Set the message text
+                                      messageBox.setText("File Download Complete");
+
+                                      // Set the window title (optional)
+                                      messageBox.setWindowTitle("ANPhoneTool");
+
+                                      // Add a standard OK button
+                                      messageBox.addButton(QMessageBox::Ok);
+
+                                      // Show the message box
+                                      messageBox.exec();
+                                  });
+
     }
     else
     {

@@ -25,6 +25,9 @@ class MirrorWidget : public QWidget
     Decoder m_Decoder;
     Frames m_Frames;
 
+    TcpServer m_Server;
+    DeviceSocket *m_deviceSocket;
+
 public:
 
     explicit MirrorWidget(QWidget *parent = nullptr);

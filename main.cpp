@@ -7,11 +7,7 @@
 #include <QApplication>
 #include <ojoie/Render/RenderContext.hpp>
 
-#include "wintoastlib.h"
-
-#ifdef _WIN32
-#include <objbase.h>
-#endif
+#include "Core/UserNotificationCenter.h"
 
 using namespace AN;
 
@@ -40,12 +36,6 @@ int main(int argc, char *argv[])
     InitializeRenderContext(AN::kGraphicsAPID3D11);
 
     Decoder::Initialize();
-
-    WinToastLib::WinToast *winToast = WinToastLib::WinToast::instance();
-    winToast->setAppName(L"ANPhoneTool");
-    const auto aumi = WinToastLib::WinToast::configureAUMI(L"AN", L"ANPhoneTool");
-    winToast->setAppUserModelId(aumi);
-    WinToastLib::WinToast::instance()->initialize();
 
     QApplication a(argc, argv);
 
