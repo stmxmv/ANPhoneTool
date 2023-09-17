@@ -124,7 +124,8 @@ void Log::logv(ANLogType type, const char *format, va_list args) {
         }
 
         std::timespec ts;
-        Q_ASSERT(std::timespec_get(&ts, TIME_UTC));
+        bool success = std::timespec_get(&ts, TIME_UTC);
+        Q_ASSERT(success);
         char timeStr[24];
         std::strftime(timeStr, sizeof timeStr, "%Y-%m-%d %T", std::localtime(&ts.tv_sec));
 

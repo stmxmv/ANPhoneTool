@@ -56,7 +56,8 @@ QD3D11VideoWidget::QD3D11VideoWidget(QWidget *parent)
     setFocusPolicy(Qt::WheelFocus);
     setMouseTracking(true);
 
-    Q_ASSERT(m_Layer.init(this));
+    bool success = m_Layer.init(this);
+    Q_ASSERT(success);
 
     m_ViewportSize = size();
 
@@ -94,7 +95,8 @@ QD3D11VideoWidget::QD3D11VideoWidget(QWidget *parent)
                 s_YUVVideoShader->createGPUObject();
 
                 s_YUVVideoMat = NewObject<Material>();
-                Q_ASSERT(s_YUVVideoMat->init(s_YUVVideoShader, "YUVVideoMat"));
+                bool success = s_YUVVideoMat->init(s_YUVVideoShader, "YUVVideoMat");
+                Q_ASSERT(success);
             }
         }
     }

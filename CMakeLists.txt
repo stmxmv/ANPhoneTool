@@ -48,13 +48,14 @@ function(windeployqt target)
         add_custom_command(TARGET ${target} POST_BUILD
                 COMMAND "${_qt_bin_dir}/windeployqt.exe"
                 --verbose 1
-                --debug
+                $<$<CONFIG:Debug>:--debug>
                 --no-svg
 #                --no-angle
                 --no-opengl
                 --no-opengl-sw
-                --no-compiler-runtime
-                --no-system-d3d-compiler
+                --compiler-runtime
+#                --no-compiler-runtime
+#                --no-system-d3d-compiler
                 \"$<TARGET_FILE:${target}>\"
                 COMMENT "Deploying Qt libraries using windeployqt for compilation target '${target}' ..."
         )
@@ -62,6 +63,14 @@ function(windeployqt target)
     endif ()
 
 endfunction()
+
+if (MSVC)
+    message("use msvc toolset version ${MSVC_TOOLSET_VERSION}")
+    # generate pdb file for release
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
+    set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DEBUG /OPT:REF /OPT:ICF")
+    set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG /OPT:REF /OPT:ICF")
+endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AN)
@@ -107,6 +116,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
             MirrorWidget.ui
             KeepRatioWidget.cpp
             KeepRatioWidget.h
+
+            Resources/resource.rc
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET ANPhoneTool APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR

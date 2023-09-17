@@ -75,7 +75,8 @@ MirrorWidget::MirrorWidget(QWidget *parent) :
 //                }
 //            });
 
-    Q_ASSERT(m_Frames.init());
+    bool success = m_Frames.init();
+    Q_ASSERT(success);
     m_Decoder.setFrames(&m_Frames);
 
     connect(&m_Decoder, &Decoder::onNewFrame, this, [this]()

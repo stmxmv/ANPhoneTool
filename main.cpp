@@ -9,6 +9,8 @@
 
 #include "Core/UserNotificationCenter.h"
 
+#include <fstream>
+
 using namespace AN;
 
 /// log qDebug() to stdout
@@ -27,6 +29,13 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
 
 int main(int argc, char *argv[])
 {
+    std::ofstream file("log.txt");
+    ANLogSetCallback([](const char *log, size_t size, void *userdata) {
+                         std::ofstream *file = (std::ofstream *)userdata;
+                         (*file) << log << std::endl;
+                         file->flush();
+    }, &file);
+
 #ifdef _WIN32
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 #endif
@@ -47,7 +56,7 @@ int main(int argc, char *argv[])
             {
                 AN_LOG(Error, "MDNS Error %s", error.message.c_str());
             });
-    service.Register("ANPhoneTool", "_anphonetool._tcp", 13130);
+    service.Register("ANPhoneTool", "_anphonetool._tcp", 13139);
 
     /// run the server
     GetDesktopServerThread().start();

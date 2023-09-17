@@ -21,6 +21,7 @@ class AN_API Device {
     ComPtr<IDXGIFactory> _DXGIFactory;
     ComPtr<ID3DUserDefinedAnnotation> _annotation;
     ComPtr<IDXGIOutput> _output;
+    ComPtr<IDXGIAdapter> _DXGIAdapter;
 
 public:
 
