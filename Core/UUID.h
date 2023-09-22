@@ -13,8 +13,8 @@
 
 namespace AN {
 
-class UUID {
-public:
+struct UUID {
+
     enum {
         /// The number of bytes in a UUID's binary representation.
         Size = 16,
@@ -40,6 +40,9 @@ public:
 
     std::string string() const;
 };
+
+static_assert(sizeof(AN::UUID) == 16);
+
 }
 
 

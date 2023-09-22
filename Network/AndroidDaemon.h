@@ -8,6 +8,8 @@
 #include <Network/TcpServer.h>
 #include <adb/AdbHandler.h>
 
+
+/// \deprecated this class is for test only
 class AndroidDaemon : public QObject
 {
     Q_OBJECT
