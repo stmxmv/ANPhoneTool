@@ -120,20 +120,23 @@ DesktopServer::DesktopServer(QObject *parent)
                 DeviceControlSocket *controlSocket = (DeviceControlSocket *)socket;
                 QObject::connect(controlSocket, &DeviceControlSocket::OnReadMessage, this, &DesktopServer::OnReadMessage);
 
-                QObject::connect(socket, &QTcpSocket::disconnected, this, [socket]()
+                QObject::connect(socket, &QTcpSocket::disconnected, this, [socket, this]()
                                 {
                                      AN_LOG(Info, "Desktop Control socket disconnected to %s", socket->peerAddress().toString().toStdString().c_str());
                                     socket->deleteLater();
+                                    DoOnDisConnected();
                                 });
 
-                QObject::connect(socket, &QTcpSocket::aboutToClose, this, [socket]()
+                QObject::connect(socket, &QTcpSocket::aboutToClose, this, [socket, this]()
                                 {
                                      AN_LOG(Info, "Desktop Control socket about to close to %s", socket->peerAddress().toString().toStdString().c_str());
                                     socket->deleteLater();
+                                    DoOnDisConnected();
                                 });
 
                 m_ControlSocket = controlSocket;
 
+                DoOnConnected();
             });
 
     connect(&m_DataServer, &QTcpServer::newConnection, this, [this]()
@@ -158,8 +161,26 @@ DesktopServer::DesktopServer(QObject *parent)
                                  });
 
                 m_DataSocket = dataSocket;
+
+                DoOnConnected();
             });
 
+}
+
+void DesktopServer::DoOnConnected()
+{
+    if (m_ControlSocket && m_DataSocket)
+    {
+        emit OnConnected();
+    }
+}
+
+void DesktopServer::DoOnDisConnected()
+{
+    if (m_ControlSocket == nullptr || m_DataSocket == nullptr) return;
+    m_ControlSocket = nullptr;
+    m_DataSocket = nullptr;
+    emit OnDisConnected();
 }
 
 void DesktopServer::sendMessage(QTcpSocket *socket, const google::protobuf::Message &message)

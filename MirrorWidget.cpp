@@ -31,7 +31,8 @@ MirrorWidget::MirrorWidget(QWidget *parent) :
                                               QWidget(parent),
                                               ui(new Ui::MirrorWidget),
                                               m_VideoWidget(),
-                                              m_AndroidDaemon(QDir::currentPath() +  "/adb.exe", this)
+                                              m_AndroidDaemon(QDir::currentPath() +  "/adb.exe", this),
+                                              m_deviceSocket()
 {
     ui->setupUi(this);
 

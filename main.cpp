@@ -1,4 +1,5 @@
 #include "widget.h"
+#include "loginview.h"
 
 #include <Render/Decoder.h>
 #include <Network/DesktopServer.h>
@@ -11,6 +12,10 @@
 
 #include <fstream>
 
+#ifdef _WIN32
+#include <debugapi.h>
+#endif
+
 using namespace AN;
 
 /// log qDebug() to stdout
@@ -22,6 +27,7 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
         case QtDebugMsg:
             std::cout << qPrintable(msg) << std::endl;
             break;
+
         default:
             break;
     }
@@ -30,11 +36,16 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
 int main(int argc, char *argv[])
 {
     std::ofstream file("log.txt");
-    ANLogSetCallback([](const char *log, size_t size, void *userdata) {
-                         std::ofstream *file = (std::ofstream *)userdata;
-                         (*file) << log << std::endl;
-                         file->flush();
-    }, &file);
+
+    if (!IsDebuggerPresent())
+    {
+        ANLogSetCallback([](const char *log, size_t size, void *userdata) {
+                             std::ofstream *file = (std::ofstream *)userdata;
+                             (*file) << log << std::endl;
+                             file->flush();
+                         }, &file);
+    }
+
 
 #ifdef _WIN32
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
@@ -63,7 +74,14 @@ int main(int argc, char *argv[])
     GetDesktopServer();
 
     Widget w;
-    w.show();
+    LoginView loginView;
+
+    QObject::connect(&GetDesktopServer(), &DesktopServer::OnConnected, &loginView, &LoginView::OnLogin);
+    QObject::connect(&GetDesktopServer(), &DesktopServer::OnDisConnected, &w, &Widget::OnLogout);
+
+    loginView.SetMainWidget(&w);
+    w.SetLoginView(&loginView);
+    loginView.show();
 
     int ret = a.exec();
 
@@ -81,6 +99,7 @@ int main(int argc, char *argv[])
 #ifdef _WIN32
     CoUninitialize();
 #endif
+
 
     return ret;
 }

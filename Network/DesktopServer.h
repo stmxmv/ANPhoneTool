@@ -79,6 +79,15 @@ public:
     void willReceiveFile(const AN::SendFileInfo &info, DeviceControlSocket *controlSocket);
 
     void sendFile(const QString &filePath);
+
+    void DoOnConnected();
+    void DoOnDisConnected();
+
+signals:
+
+    void OnConnected();
+    void OnDisConnected();
+
 };
 
 class DesktopServerThread : public QThread

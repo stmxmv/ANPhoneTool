@@ -93,7 +93,7 @@ add_subdirectory(Tools)
 add_subdirectory(adb)
 
 
-
+option(AN_TEST_UI "Test UI" FALSE)
 
 set(PROJECT_SOURCES
         main.cpp
@@ -117,6 +117,10 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
             KeepRatioWidget.cpp
             KeepRatioWidget.h
 
+            loginview.h
+            loginview.cpp
+            loginview.ui
+
             Resources/resource.rc
     )
 # Define target properties for Android with Qt 6 as:
@@ -137,6 +141,9 @@ else()
     endif()
 endif()
 
+if (AN_TEST_UI)
+    target_compile_definitions(ANPhoneTool PRIVATE AN_TEST_UI)
+endif()
 target_link_libraries(ANPhoneTool PRIVATE Qt${QT_VERSION_MAJOR}::Widgets adb Core Render WinToast qrencode)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.

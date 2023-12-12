@@ -49,6 +49,9 @@ public:
 
     void bridge(HWND hWnd);
 
+    /// don't register for AN DragAndDrop, not change Window Long User Data
+    void bridge1(HWND hWnd);
+
     virtual bool init(const Rect &frame, bool wantsLayer) override;
 
     virtual ~Window() override;

@@ -1,6 +1,6 @@
 #include "widget.h"
 #include "./ui_widget.h"
-
+#include "loginview.h"
 #include "MirrorWidget.h"
 #include "Network/DesktopServer.h"
 #include <adb/AdbHandler.h>
@@ -19,8 +19,18 @@ QList<QHostAddress> GetAllLocalAddresses()
     const QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
     QList<QHostAddress> result;
     for (const auto& p : interfaces)
+    {
         for (const QNetworkAddressEntry& entry : p.addressEntries())
+        {
+            if (entry.ip().protocol() == QAbstractSocket::IPv6Protocol ||
+                entry.ip().isLoopback())
+            {
+                continue;
+            }
             result += entry.ip();
+        }
+    }
+
 
     return result;
 }
@@ -44,6 +54,16 @@ Widget::Widget(QWidget *parent)
     , ui(new Ui::Widget)
 {
     ui->setupUi(this);
+
+    setFixedSize(size());
+
+#ifndef AN_TEST_UI
+    QWidget *testButton = findChild<QWidget *>("testButton_2");
+    testButton->deleteLater();
+
+    testButton = findChild<QWidget *>("testButton");
+    testButton->deleteLater();
+#endif
 }
 
 Widget::~Widget()
@@ -51,6 +71,12 @@ Widget::~Widget()
     delete ui;
 }
 
+void Widget::OnLogout()
+{
+    m_LoginView->show();
+    m_LoginView->focusWidget();
+    hide();
+}
 
 void Widget::on_testButton_clicked()
 {
@@ -181,5 +207,13 @@ void Widget::on_sendFileButton_clicked()
                               {
                                   GetDesktopServer().sendFile(filePath);
                               });
+}
+
+
+void Widget::on_testButton_2_clicked()
+{
+    m_LoginView->show();
+    m_LoginView->focusWidget();
+    hide();
 }
 

@@ -4,5 +4,10 @@
     </qresource>
     <qresource prefix="/Binary">
         <file>Resources/scrcpy-server.jar</file>
+        <file>Resources/Phone.jpg</file>
+        <file>Resources/code.png</file>
+        <file>Resources/pic1.png</file>
+        <file>Resources/pic2.png</file>
+        <file>Resources/pic3.png</file>
     </qresource>
 </RCC>
